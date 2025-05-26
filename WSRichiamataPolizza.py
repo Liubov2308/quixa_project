@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
-# Подключение к локальной MongoDB (если меняем на облако - изменим строку позже)
-client = MongoClient("mongodb+srv://admin:admin123@cluster0.mfgmbey.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+mongo_uri = os.environ.get("MONGO_URI")
+client = MongoClient(mongo_uri)
 
 db = client["quixa"]
 collection = db["quixa_collection"]
