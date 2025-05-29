@@ -14,7 +14,7 @@ collection = db["quixa_collection"]
 @app.route("/check_polizza", methods=["POST"])
 def check_polizza():
     data = request.json
-    numero = data.get("numero_polizza")
+    numero = str(data.get("numero_polizza")).strip()
 
     polizza = collection.find_one({"numero_polizza": numero})
 
