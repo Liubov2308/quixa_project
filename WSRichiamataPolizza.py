@@ -35,7 +35,7 @@ def check_polizza():
     return jsonify({
         "status": 200,
         "tipo_cliente": tipo_cliente,
-        "polizza_prefix": str.(numero)[:4]
+        "polizza_prefix": str(numero)[:4]
     })
 
 if __name__ == "__main__":
