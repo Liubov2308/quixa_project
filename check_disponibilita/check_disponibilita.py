@@ -41,13 +41,6 @@ def check_disponibilita():
     try:
         data = request.get_json()
 
-        if not data or 'queueName' not in data:
-            return jsonify({
-                "status": "KO",
-                "fasce_disponibilita": [],
-                "error": "Missing parameter 'queueName'"
-            }), 400
-
         queue = data['queueName']
         today = datetime.today()
         slots = generate_slot_objects(today)  # Создаём словари слотов
@@ -63,7 +56,38 @@ def check_disponibilita():
             "fasce_disponibilita": [],
             "error": f"Server error: {str(e)}"
         }), 500
+
+
+@app.route('/find_booking_by_phone', methods=['POST'])
+def find_booking_by_phone():
+    try:
+        data = request.get_json()
+        phone = data.get("phoneNumber")
         
+        booking = collection.find_one({"phoneNumber": phone})
+
+        if booking:
+            return jsonify({
+                "returnCode": 200,
+                "reservationId": str(booking.get("_id")),
+                "queueName": booking.get("queueName"),
+                "dateReservation": booking.get("dateReservation"),
+                "bookingInfo": booking.get("bookingInfo"),
+                "email": booking.get("email")
+            })
+        else:
+            return jsonify({
+                "returnCode": 404,
+                "error": "Booking not found"
+            })
+
+    except Exception as e:
+        return jsonify({
+            "returnCode": 500,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/save_booking', methods=['POST'])
 def save_booking():
     try:
@@ -73,15 +97,9 @@ def save_booking():
         queue = data.get("queueName")
         user = data.get("userName")
         phone = data.get("phoneNumber")
+        email = data.get("emailUtente")
 
-        # Проверка на наличие всех данных
-        if not all([slot, queue, user, phone]):
-            return jsonify({"status": "KO", "error": "Missing data"}), 400
-
-        # Проверка: есть ли уже бронь на этот номер телефона
-        existing = collection.find_one({"phoneNumber": phone})
-        if existing:
-            return jsonify({"status": "KO", "error": "Booking already exists"}), 409
+        timestamp = int(datetime.now().timestamp())
 
         # Сохраняем бронь
         collection.insert_one({
@@ -89,6 +107,8 @@ def save_booking():
             "queueName": queue,
             "bookingInfo": slot,
             "phoneNumber": phone
+            "email": email,
+            "dateReservation": timestamp
         })
 
         return jsonify({"status": "OK", "message": "Booking saved successfully"})
