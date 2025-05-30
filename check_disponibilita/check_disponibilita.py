@@ -107,7 +107,7 @@ def save_booking():
             "userName": user,
             "queueName": queue,
             "bookingInfo": slot,
-            "phoneNumber": phone
+            "phoneNumber": phone,
             "email": email,
             "dateReservation": timestamp
         })
