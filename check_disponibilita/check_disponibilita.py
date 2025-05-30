@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from pymongo import MongoClient
+from bson import ObjectId
 import os
 
 app = Flask(__name__)
@@ -115,6 +116,36 @@ def save_booking():
 
     except Exception as e:
         return jsonify({"status": "KO", "error": str(e)}), 500
+
+@app.route('/delete_booking', methods=['POST'])
+def delete_booking():
+    try:
+        data = request.get_json()
+        reservation_id = data.get("reservationId")
+
+        # Преобразуем строку в ObjectId
+        obj_id = ObjectId(reservation_id)
+        
+        # Пытаемся удалить бронь
+        result = collection.delete_one({"_id": obj_id})
+
+        if result.deleted_count == 1:
+            return jsonify({
+                "returnCode": 200,
+                "message": "Booking deleted successfully"
+            })
+        else:
+            return jsonify({
+                "returnCode": 404,
+                "message": "Booking not found"
+            })
+
+    except Exception as e:
+        return jsonify({
+            "returnCode": 500,
+            "message": f"Server error: {str(e)}"
+        }), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
