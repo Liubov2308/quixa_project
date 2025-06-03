@@ -102,6 +102,14 @@ def save_booking():
 
         timestamp = int(datetime.now().timestamp())
 
+        # Проверка: занят ли уже этот слот
+        existing_booking = collection.find_one({"bookingInfo": slot})
+        if existing_booking:
+            return jsonify({
+                "status": "KO",
+                "message": "Slot already booked"
+            }), 400  # 400 = Bad Request
+
         # Сохраняем бронь
         collection.insert_one({
             "userName": user,
