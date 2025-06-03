@@ -3,6 +3,7 @@ from datetime import datetime
 from pymongo import MongoClient
 from bson import ObjectId
 import os
+import re
 
 app = Flask(__name__)
 
@@ -36,7 +37,16 @@ def generate_slot_objects(date_obj, booked_slots=None):
         for i, time in enumerate(TIME_SLOTS)
         if i not in booked_slots
     ]
+def normalize_phone(phone):
+    # Удаляем все символы, кроме цифр
+    digits_only = re.sub(r"\D", "", phone)
 
+    # Если начинается с 39 — уже есть код страны
+    if digits_only.startswith("39"):
+        return "+" + digits_only
+    else:
+        return "+39" + digits_only.lstrip("0")
+        
 @app.route('/check_disponibilita', methods=['POST'])
 def check_disponibilita():
     try:
@@ -64,8 +74,9 @@ def find_booking_by_phone():
     try:
         data = request.get_json()
         phone = data.get("phoneNumber")
-        
-        booking = collection.find_one({"phoneNumber": phone})
+
+        normalized_phone = normalize_phone(phone)
+        booking = collection.find_one({"phoneNumber": normalized_phone})
 
         if booking:
             return jsonify({
