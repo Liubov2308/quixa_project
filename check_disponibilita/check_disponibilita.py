@@ -39,6 +39,7 @@ def generate_slot_objects(date_obj, booked_slots=None):
     ]
 def normalize_phone(phone):
     # Удаляем все символы, кроме цифр
+    phone = str(phone)
     digits_only = re.sub(r"\D", "", phone)
 
     # Если начинается с 39 — уже есть код страны
