@@ -109,6 +109,7 @@ def save_booking():
         queue = data.get("queueName")
         user = data.get("userName")
         phone = data.get("phoneNumber")
+        normalized_phone = normalize_phone(phone)
         email = data.get("emailUtente")
 
         timestamp = int(datetime.now().timestamp())
@@ -126,7 +127,7 @@ def save_booking():
             "userName": user,
             "queueName": queue,
             "bookingInfo": slot,
-            "phoneNumber": phone,
+            "phoneNumber": normalized_phone,
             "email": email,
             "dateReservation": timestamp
         })
