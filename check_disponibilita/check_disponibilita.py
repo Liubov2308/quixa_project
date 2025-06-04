@@ -42,7 +42,7 @@ def parse_booking_info(text):
         giorno_data = " ".join(giorno_completo.split()[1:])  # "3 Giugno 2025"
 
         # "2025-06-03"
-        dt = datetime.datetime.strptime(giorno_data, "%d %B %Y")
+        dt = datetime.strptime(giorno_data, "%d %B %Y")
         return dt.strftime("%Y-%m-%d"), ora
         
 @app.route('/check_disponibilita', methods=['POST'])
@@ -54,7 +54,7 @@ def check_disponibilita():
         slots = list(db.available_slots.find({
             "queueName": queue,
             "$expr": {"$lt": ["$booked", "$total"]}
-        }).sort([("date", 1).("time", 1)]).limit(3))
+        }).sort([("date", 1),("time", 1)]).limit(3))
 
         result = []
         for slot in slots:
@@ -127,7 +127,7 @@ def save_booking():
         userInfo = data.get("userInfo")
         timestamp = int(datetime.now().timestamp())
         
-        date_part, time_part = parse_booking_info(booking_info) # "2025-06-05|10:00-11:00"
+        date_part, time_part = parse_booking_info(slot) # "2025-06-05|10:00-11:00"
         
 
         slot_entry = db.available_slots.find_one({
@@ -145,7 +145,7 @@ def save_booking():
         collection.insert_one({
             "userName": user,
             "queueName": queue,
-            "bookingInfo": booking_info,
+            "bookingInfo": slot,
             "phoneNumber": normalized_phone,
             "email": email,
             "birthDate": birthDate,
