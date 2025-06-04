@@ -16,30 +16,6 @@ db = client["quixa"]
 collection = db["bookings"]
 available_slots = db["available_slots"]
 
-# Жёстко заданные временные слоты
-TIME_SLOTS = [
-    "09:00-10:00",
-    "10:00-11:00",
-    "11:00-12:00"
-]
-
-def generate_slot_objects(date_obj, booked_slots=None):
-    if booked_slots is None:
-        booked_slots = []
-
-    giorni_settimana = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-    day_name = giorni_settimana[date_obj.weekday()]
-    date_string = f"{day_name} {date_obj.day} {date_obj.strftime('%B %Y')}"
-
-    return [
-        {
-            'slot_id': i,
-            'time_slot': f"{date_string} alle ore {time}",
-            'available': True
-        }
-        for i, time in enumerate(TIME_SLOTS)
-        if i not in booked_slots
-    ]
 def normalize_phone(phone):
     # Удаляем все символы, кроме цифр
     phone = str(phone)
@@ -55,22 +31,27 @@ def normalize_phone(phone):
 def check_disponibilita():
     try:
         data = request.get_json()
-
         queue = data['queueName']
-        today = datetime.today()
-        slots = generate_slot_objects(today)  # Создаём словари слотов
 
-        return jsonify({
-            "status": "OK",
-            "fasce_disponibilita": slots
-        })
+        slots = list(db.available_slots.find({
+            "queueName": queue,
+            "$expr": {"$lt": ["$booked", "$total"]}
+        }).sort("date", 1).limit(3))
+
+        result = []
+        for slot in slots:
+            available = slot["total"] - slot["booked"]
+            result.append({
+                "date": slot["date"],
+                "time_slot": slot["time"],
+                "available": available,
+                "total": slot["total"]
+            })
+
+        return jsonify({"status": "OK", "fasce_disponibilita": result})
 
     except Exception as e:
-        return jsonify({
-            "status": "KO",
-            "fasce_disponibilita": [],
-            "error": f"Server error: {str(e)}"
-        }), 500
+        return jsonify({"status": "KO", "fasce_disponibilita": [], "error": str(e)}), 500
 
 
 @app.route('/find_booking_by_phone', methods=['POST'])
@@ -109,7 +90,7 @@ def save_booking():
     try:
         data = request.get_json()
 
-        slot = data.get("bookingInfo")
+        slot = data.get("bookingInfo")  # expected format: "2025-06-05|10:00-11:00"
         queue = data.get("queueName")
         user = data.get("userName")
         phone = data.get("phoneNumber")
@@ -117,16 +98,26 @@ def save_booking():
         email = data.get("emailUtente")
         birthDate = data.get("birthDate")
         userInfo = data.get("userInfo")
-
         timestamp = int(datetime.now().timestamp())
+        
+        try:
+            date_part, time_part = slot.split("|")
+        except ValueError:
+            return jsonify({"status": "KO", "message": "Invalid slot format"}), 400
+            
+        slot_entry = db.available_slots.find_one({
+         "date": date_part,
+         "time": time_part,
+         "queueName": queue
+        })
 
-        # Проверка: занят ли уже этот слот
-        existing_booking = collection.find_one({"bookingInfo": slot})
-        if existing_booking:
-            return jsonify({
-                "status": "KO",
-                "message": "Slot already booked"
-            }), 400  # 400 = Bad Request
+        if not slot_entry or slot_entry["booked"] >= slot_entry["total"]:
+            return jsonify({"status": "KO", "message": "Slot not available"}), 400
+
+        db.available_slots.update_one(
+            {"_id": slot_entry["_id"]},
+            {"$inc": {"booked": 1}}
+        )
 
         # Сохраняем бронь
         collection.insert_one({
@@ -137,6 +128,8 @@ def save_booking():
             "email": email,
             "birthDate": birthDate,
             "userInfo": userInfo,
+            "date": date_part,
+            "time": time_part,
             "dateReservation": timestamp
         })
 
@@ -150,29 +143,26 @@ def delete_booking():
     try:
         data = request.get_json()
         reservation_id = data.get("reservationId")
-
         # Преобразуем строку в ObjectId
         obj_id = ObjectId(reservation_id)
+        booking = collection.find_one({"_id": obj_id})
         
         # Пытаемся удалить бронь
         result = collection.delete_one({"_id": obj_id})
 
         if result.deleted_count == 1:
-            return jsonify({
-                "returnCode": 200,
-                "message": "Booking deleted successfully"
-            })
-        else:
-            return jsonify({
-                "returnCode": 404,
-                "message": "Booking not found"
-            })
+            db.available_slots.update_one(
+                {
+                    "date": booking["date"],
+                    "time": booking["time"],
+                    "queueName": booking["queueName"]
+                },
+                {"$inc": {"booked": -1}}
+            )
+            return jsonify({"returnCode": 200, "message": "Booking deleted successfully"})
 
     except Exception as e:
-        return jsonify({
-            "returnCode": 500,
-            "message": f"Server error: {str(e)}"
-        }), 500
+        return jsonify({"returnCode": 500, "message": f"Server error: {str(e)}"}), 500
 
 
 @app.route('/create_slot', methods=['POST'])
