@@ -5,11 +5,8 @@ from bson import ObjectId
 import os
 import re
 from flask_cors import CORS
-import locale
 import calendar
 from datetime import datetime
-
-locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
 
 app = Flask(__name__)
 CORS(app)
@@ -36,17 +33,40 @@ def parse_booking_info(text):
     try:
         # "Lunedì 3 Giugno 2025 alle ore 10:00"
         parts = text.split(" alle ore ")
-        ora = parts[1]  # "10:00"
+        if len(parts) != 2:
+            return None, None
 
-        giorno_completo = parts[0]  # "Lunedì 3 Giugno 2025"
-        giorno_data = " ".join(giorno_completo.split()[1:])  # "3 Giugno 2025"
+        time_part = parts[1].strip()
+        date_part = parts[0].strip()
 
-        # "2025-06-03"
-        dt = datetime.strptime(giorno_data, "%d %B %Y")
-        return dt.strftime("%Y-%m-%d"), ora
+        # Удаляем день недели (первое слово)
+        tokens = date_part.split(" ")
+        if len(tokens) < 4:
+            return None, None
+
+        day = int(tokens[1])
+        month_str = tokens[2]
+        year = int(tokens[3])
+
+        italian_months = {
+            "Gennaio": 1, "Febbraio": 2, "Marzo": 3, "Aprile": 4,
+            "Maggio": 5, "Giugno": 6, "Luglio": 7, "Agosto": 8,
+            "Settembre": 9, "Ottobre": 10, "Novembre": 11, "Dicembre": 12
+        }
+
+        month = italian_months.get(month_str)
+        if not month:
+            return None, None
+
+        dt = datetime(year, month, day)
+        formatted_date = dt.strftime("%Y-%m-%d")
+
+        return formatted_date, time_part
+
     except Exception as e:
-        print("Errore nel parsing:", e)
+        print("Errore nel parse_booking_info:", e)
         return None, None
+
         
 @app.route('/check_disponibilita', methods=['POST'])
 def check_disponibilita():
@@ -59,19 +79,30 @@ def check_disponibilita():
             "$expr": {"$lt": ["$booked", "$total"]}
         }).sort([("date", 1),("time", 1)]).limit(3))
 
+        italian_weekdays = {
+            0: "Lunedì", 1: "Martedì", 2: "Mercoledì", 3: "Giovedì",
+            4: "Venerdì", 5: "Sabato", 6: "Domenica"
+        }
+
+        italian_months = {
+            1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+            5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+            9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+        }
+
         result = []
         for slot in slots:
             date_obj = datetime.strptime(slot["date"], "%Y-%m-%d")
-            giorno_settimana = date_obj.strftime("%A")  
-            giorno = date_obj.strftime("%d")
-            mese = date_obj.strftime("%B")  
-            anno = date_obj.strftime("%Y")
-
-            ora = slot["time"].split("-")[0]  
+            weekday = italian_weekdays[date_obj.weekday()]
+            day = date_obj.day
+            month = italian_months[date_obj.month]
+            year = date_obj.year
+            hour = slot["time"].split("-")[0] 
 
             descrizione = f"{giorno_settimana} {giorno} {mese} {anno} alle ore {ora}"
             
             available = slot["total"] - slot["booked"]
+            
             result.append({
                 "slot": descrizione,
                 "available": available,
