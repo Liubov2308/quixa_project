@@ -5,6 +5,11 @@ from bson import ObjectId
 import os
 import re
 from flask_cors import CORS
+import locale
+import calendar
+from datetime import datetime
+
+locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
 
 app = Flask(__name__)
 CORS(app)
@@ -26,6 +31,19 @@ def normalize_phone(phone):
         return "+" + digits_only
     else:
         return "+39" + digits_only.lstrip("0")
+
+def parse_booking_info(text):
+    try:
+        # "Lunedì 3 Giugno 2025 alle ore 10:00"
+        parts = text.split(" alle ore ")
+        ora = parts[1]  # "10:00"
+
+        giorno_completo = parts[0]  # "Lunedì 3 Giugno 2025"
+        giorno_data = " ".join(giorno_completo.split()[1:])  # "3 Giugno 2025"
+
+        # "2025-06-03"
+        dt = datetime.datetime.strptime(giorno_data, "%d %B %Y")
+        return dt.strftime("%Y-%m-%d"), ora
         
 @app.route('/check_disponibilita', methods=['POST'])
 def check_disponibilita():
@@ -36,14 +54,23 @@ def check_disponibilita():
         slots = list(db.available_slots.find({
             "queueName": queue,
             "$expr": {"$lt": ["$booked", "$total"]}
-        }).sort("date", 1).limit(3))
+        }).sort([("date", 1).("time", 1)]).limit(3))
 
         result = []
         for slot in slots:
+            date_obj = datetime.strptime(slot["date"], "%Y-%m-%d")
+            giorno_settimana = date_obj.strftime("%A")  
+            giorno = date_obj.strftime("%d")
+            mese = date_obj.strftime("%B")  
+            anno = date_obj.strftime("%Y")
+
+            ora = slot["time"].split("-")[0]  
+
+            descrizione = f"{giorno_settimana} {giorno} {mese} {anno} alle ore {ora}"
+            
             available = slot["total"] - slot["booked"]
             result.append({
-                "date": slot["date"],
-                "time_slot": slot["time"],
+                "slot": descrizione,
                 "available": available,
                 "total": slot["total"]
             })
@@ -90,7 +117,7 @@ def save_booking():
     try:
         data = request.get_json()
 
-        slot = data.get("bookingInfo")  # expected format: "2025-06-05|10:00-11:00"
+        slot = data.get("bookingInfo")  
         queue = data.get("queueName")
         user = data.get("userName")
         phone = data.get("phoneNumber")
@@ -100,30 +127,25 @@ def save_booking():
         userInfo = data.get("userInfo")
         timestamp = int(datetime.now().timestamp())
         
-        try:
-            date_part, time_part = slot.split("|")
-        except ValueError:
-            return jsonify({"status": "KO", "message": "Invalid slot format"}), 400
-            
+        date_part, time_part = parse_booking_info(booking_info) # "2025-06-05|10:00-11:00"
+        
+
         slot_entry = db.available_slots.find_one({
-         "date": date_part,
-         "time": time_part,
-         "queueName": queue
+            "date": date_part,
+            "time": time_part,
+            "queueName": queue
         })
 
         if not slot_entry or slot_entry["booked"] >= slot_entry["total"]:
             return jsonify({"status": "KO", "message": "Slot not available"}), 400
 
-        db.available_slots.update_one(
-            {"_id": slot_entry["_id"]},
-            {"$inc": {"booked": 1}}
-        )
+        db.available_slots.update_one({"_id": slot_entry["_id"]}, {"$inc": {"booked": 1}})
 
         # Сохраняем бронь
         collection.insert_one({
             "userName": user,
             "queueName": queue,
-            "bookingInfo": slot,
+            "bookingInfo": booking_info,
             "phoneNumber": normalized_phone,
             "email": email,
             "birthDate": birthDate,
