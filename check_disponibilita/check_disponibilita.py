@@ -12,6 +12,7 @@ client = MongoClient(mongo_uri)
 
 db = client["quixa"]
 collection = db["bookings"]
+available_slots = db["available_slots"]
 
 # Жёстко заданные временные слоты
 TIME_SLOTS = [
@@ -170,6 +171,57 @@ def delete_booking():
             "returnCode": 500,
             "message": f"Server error: {str(e)}"
         }), 500
+
+
+@app.route('/create_slot', methods=['POST'])
+def create_slot():
+    data = request.get_json()
+
+    slot = {
+        "date": data["date"],  # формат YYYY-MM-DD
+        "time": data["time"],  # формат HH:MM-HH:MM
+        "queueName": data["queueName"],
+        "total": int(data["total"]),
+        "booked": 0
+    }
+
+    existing = db.available_slots.find_one({
+        "date": slot["date"],
+        "time": slot["time"],
+        "queueName": slot["queueName"]
+    })
+
+    if existing:
+        return jsonify({"status": "KO", "message": "Slot already exists"}), 400
+
+    db.available_slots.insert_one(slot)
+    return jsonify({"status": "OK", "message": "Slot created"})
+
+
+@app.route('/admin_slots', methods=['GET'])
+def get_admin_slots():
+    date = request.args.get("date")
+    queue = request.args.get("queueName")
+
+    query = {}
+    if date:
+        query["date"] = date
+    if queue:
+        query["queueName"] = queue
+
+    slots = list(db.available_slots.find(query))
+
+    return jsonify([
+        {
+            "date": s["date"],
+            "time": s["time"],
+            "queueName": s["queueName"],
+            "total": s["total"],
+            "booked": s["booked"],
+            "available": s["total"] - s["booked"]
+        }
+        for s in slots
+    ])
 
 
 if __name__ == '__main__':
