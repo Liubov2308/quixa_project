@@ -97,9 +97,8 @@ def check_disponibilita():
             day = date_obj.day
             month = italian_months[date_obj.month]
             year = date_obj.year
-            hour = slot["time"].split("-")[0] 
 
-            descrizione = f"{weekday} {day} {month} {year} alle ore {hour}"
+            descrizione = f"{weekday} {day} {month} {year} alle ore {slot['time']}"
             
             available = slot["total"] - slot["booked"]
             
