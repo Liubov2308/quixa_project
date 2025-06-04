@@ -99,7 +99,7 @@ def check_disponibilita():
             year = date_obj.year
             hour = slot["time"].split("-")[0] 
 
-            descrizione = f"{giorno_settimana} {giorno} {mese} {anno} alle ore {ora}"
+            descrizione = f"{weekday} {day} {month} {year} alle ore {hour}"
             
             available = slot["total"] - slot["booked"]
             
