@@ -4,8 +4,10 @@ from pymongo import MongoClient
 from bson import ObjectId
 import os
 import re
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 mongo_uri = os.environ.get("MONGO_URI")
 client = MongoClient(mongo_uri)
