@@ -133,7 +133,7 @@ def save_booking():
             "phoneNumber": normalized_phone,
             "email": email,
             "birthDate": birthDate,
-            "userInfo": userInfo
+            "userInfo": userInfo,
             "dateReservation": timestamp
         })
 
