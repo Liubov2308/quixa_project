@@ -44,6 +44,9 @@ def parse_booking_info(text):
         # "2025-06-03"
         dt = datetime.strptime(giorno_data, "%d %B %Y")
         return dt.strftime("%Y-%m-%d"), ora
+    except Exception as e:
+        print("Errore nel parsing:", e)
+        return None, None
         
 @app.route('/check_disponibilita', methods=['POST'])
 def check_disponibilita():
